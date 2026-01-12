@@ -36,7 +36,12 @@ class AudioObserver:
         # Audio buffer for analysis
         self.buffer_duration = 5.0  # seconds
         self.buffer_size = int(self.sample_rate * self.buffer_duration)
+        # Use deque for efficient circular buffer
         self.audio_buffer = deque(maxlen=self.buffer_size)
+        
+        # Cache for numpy conversions to avoid repeated list conversions
+        self._buffer_cache = None
+        self._buffer_cache_valid = False
         
         # Feature storage
         self.current_features = {
@@ -95,6 +100,7 @@ class AudioObserver:
         # Add to buffer
         with self.lock:
             self.audio_buffer.extend(audio_mono)
+            self._buffer_cache_valid = False  # Invalidate cache on new data
     
     def start_streaming(self):
         """Start audio streaming and processing."""
@@ -150,8 +156,15 @@ class AudioObserver:
                 if len(self.audio_buffer) < self.block_size:
                     continue
                 
-                # Get recent audio data
-                audio_data = np.array(list(self.audio_buffer)[-self.block_size:])
+                # Get recent audio data efficiently
+                buffer_len = len(self.audio_buffer)
+                start_idx = max(0, buffer_len - self.block_size)
+                # Convert only the needed portion
+                audio_data = np.fromiter(
+                    (self.audio_buffer[i] for i in range(start_idx, buffer_len)),
+                    dtype=np.float64,
+                    count=min(self.block_size, buffer_len - start_idx)
+                )
             
             # Extract features
             self._extract_features(audio_data)
@@ -237,7 +250,15 @@ class AudioObserver:
         # Check if energy exceeds threshold
         if len(self.audio_buffer) > self.block_size * 2:
             with self.lock:
-                recent_energy = np.array(list(self.audio_buffer)[-self.block_size * 4:-self.block_size])
+                buffer_len = len(self.audio_buffer)
+                start_idx = max(0, buffer_len - self.block_size * 4)
+                end_idx = max(0, buffer_len - self.block_size)
+                # Efficient iteration without full list conversion
+                recent_energy = np.fromiter(
+                    (self.audio_buffer[i] for i in range(start_idx, end_idx)),
+                    dtype=np.float64,
+                    count=end_idx - start_idx
+                )
             
             avg_energy = np.mean(recent_energy ** 2)
             

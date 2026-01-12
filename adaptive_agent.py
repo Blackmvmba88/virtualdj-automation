@@ -26,16 +26,22 @@ class AdaptiveAgent:
     Adaptive agent that learns to optimize DJ mixing using multiple learning approaches.
     """
     
-    def __init__(self, learning_mode: str = 'heuristic', model_path: Optional[str] = None):
+    def __init__(self, learning_mode: str = 'heuristic', model_path: Optional[str] = None, random_seed: Optional[int] = None):
         """
         Initialize adaptive agent.
         
         Args:
             learning_mode: Learning approach ('heuristic', 'supervised', 'reinforcement')
             model_path: Path to save/load trained models
+            random_seed: Seed for random number generator (for reproducibility)
         """
         self.learning_mode = learning_mode
         self.model_path = model_path or 'models'
+        
+        # Set random seed for reproducibility
+        self.random_seed = random_seed
+        if random_seed is not None:
+            np.random.seed(random_seed)
         
         # Ensure model directory exists
         os.makedirs(self.model_path, exist_ok=True)
@@ -65,6 +71,7 @@ class AdaptiveAgent:
         self.discount_factor = 0.95
         self.exploration_rate = 0.2
         self.exploration_decay = 0.995
+        self.min_exploration_rate = 0.01
         
         # Load existing models if available
         self._load_models()
@@ -217,9 +224,15 @@ class AdaptiveAgent:
             actions['eq_adjust'] = {'high': 0.1}
         
         # Random effect triggers for variety
-        if np.random.random() < self.mix_params['effect_probability']:
+        if self.random_seed is None:
+            random_val = np.random.random()
+        else:
+            # Use seeded random for reproducibility
+            random_val = np.random.random()
+        
+        if random_val < self.mix_params['effect_probability']:
             if audio_features.get('beat_detected', False):
-                actions['effect_trigger'] = np.random.randint(1, 4)
+                actions['effect_trigger'] = int(random_val * 3) + 1
         
         return actions
     
@@ -364,7 +377,7 @@ class AdaptiveAgent:
         
         # Decay exploration rate
         self.exploration_rate *= self.exploration_decay
-        self.exploration_rate = max(0.01, self.exploration_rate)
+        self.exploration_rate = max(self.min_exploration_rate, self.exploration_rate)
         
         # Store reward
         self.reward_history.append(reward)

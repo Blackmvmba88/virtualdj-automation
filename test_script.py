@@ -141,6 +141,28 @@ class VirtualDJAutomationSystem:
         finally:
             self.stop()
     
+    def _update_crossfader_position(self, adjustment: float, vdj_state: dict) -> float:
+        """
+        Helper method to update crossfader position consistently.
+        
+        Args:
+            adjustment: Amount to adjust crossfader by
+            vdj_state: Current VirtualDJ state
+            
+        Returns:
+            New crossfader position
+        """
+        current_pos = vdj_state.get('crossfader_position', 0.5)
+        new_pos = np.clip(current_pos + adjustment, 0.0, 1.0)
+        
+        if self.controller.is_connected:
+            self.controller.set_crossfader(new_pos)
+        
+        # Update simulated state
+        self.observer.update_vdj_state({'crossfader_position': new_pos})
+        
+        return new_pos
+    
     def _execute_actions(self, actions: dict, audio_features: dict, vdj_state: dict):
         """
         Execute actions through MIDI controller.
@@ -155,11 +177,7 @@ class VirtualDJAutomationSystem:
         
         # Crossfader adjustment
         if actions.get('crossfade_adjust', 0.0) != 0.0:
-            current_pos = vdj_state.get('crossfader_position', 0.5)
-            new_pos = np.clip(current_pos + actions['crossfade_adjust'], 0.0, 1.0)
-            self.controller.set_crossfader(new_pos)
-            # Update simulated state
-            self.observer.update_vdj_state({'crossfader_position': new_pos})
+            self._update_crossfader_position(actions['crossfade_adjust'], vdj_state)
         
         # Volume adjustments
         if actions.get('volume_adjust_a', 0.0) != 0.0:
