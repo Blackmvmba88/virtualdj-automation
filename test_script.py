@@ -364,6 +364,45 @@ def demo_learning_modes():
     print("\n✓ Demo complete!")
 
 
+def deterministic_demo(random_seed: int = 42, iterations: int = 5):
+    """Run a short deterministic reinforcement demo to verify reproducibility.
+
+    This uses simulated audio/state (no real audio/MIDI) and prints action sequence.
+    """
+    print("\n" + "=" * 60)
+    print(f"Deterministic Demo (seed={random_seed}, iterations={iterations})")
+    print("=" * 60)
+
+    # Simulated features (kept constant for determinism but agent randomness is seeded)
+    audio_features = {
+        'rms': 0.15, 'rms_db': -12.0, 'energy': 0.25, 'bpm': 128.0,
+        'spectral_centroid': 2000.0, 'spectral_rolloff': 5000.0,
+        'zero_crossing_rate': 0.1, 'beat_detected': True
+    }
+
+    vdj_state = {
+        'deck_a_playing': True, 'deck_b_playing': False,
+        'crossfader_position': 0.3, 'master_volume': 0.8,
+        'deck_a_bpm': 128.0, 'deck_b_bpm': 0.0
+    }
+
+    agent = AdaptiveAgent(learning_mode='reinforcement', random_seed=random_seed)
+
+    actions_history = []
+    for i in range(iterations):
+        actions = agent.decide_action_reinforcement(audio_features, vdj_state)
+        actions_history.append(actions)
+        reward = agent.calculate_reward(audio_features, vdj_state)
+        agent.update_q_value(reward)
+        print(f"Iteration {i+1}: actions={actions}, reward={reward:.2f}")
+
+    print("\nAction sequence (compact):")
+    for i, act in enumerate(actions_history, 1):
+        print(f"  {i}. {act}")
+
+    print("\n✓ Deterministic demo complete!")
+
+
 def main():
     """Main function to run tests and demos."""
     print("\n" + "=" * 60)
@@ -385,6 +424,7 @@ def main():
         print("3. Demo: Learning Modes")
         print("4. Run Full Automation System (30 seconds)")
         print("5. Run Full Automation System (Custom duration)")
+        print("6. Deterministic Demo (short, reproducible)")
         print("0. Exit")
         
         choice = input("\nEnter choice: ").strip()
@@ -397,6 +437,9 @@ def main():
         
         elif choice == '3':
             demo_learning_modes()
+        
+        elif choice == '6':
+            deterministic_demo()
         
         elif choice == '4':
             print("\nSelect learning mode:")

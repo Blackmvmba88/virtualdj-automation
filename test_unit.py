@@ -280,6 +280,54 @@ def test_audio_features():
     return True
 
 
+def test_model_persistence():
+    """Test that reinforcement Q-table persistence (save/load) works."""
+    print("\nTest 9: Checking model persistence (reinforcement Q-table)...")
+    import shutil
+    import os
+    import numpy as np
+
+    models_dir = 'models_test'
+
+    # Clean up any previous test artifacts
+    if os.path.exists(models_dir):
+        shutil.rmtree(models_dir)
+
+    try:
+        # Create an agent in reinforcement mode and populate q_table
+        from adaptive_agent import AdaptiveAgent
+        agent = AdaptiveAgent(learning_mode='reinforcement', model_path=models_dir)
+        agent.q_table['test_state'] = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        agent.save()
+
+        # Load a new agent and verify q_table persisted
+        agent2 = AdaptiveAgent(learning_mode='reinforcement', model_path=models_dir)
+        if 'test_state' in agent2.q_table:
+            loaded = np.array(agent2.q_table['test_state'])
+            expected = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+            if np.allclose(loaded, expected):
+                print("  ✓ Q-table persisted and loaded correctly")
+                result = True
+            else:
+                print("  ✗ Q-table values differ after load")
+                print(f"    expected: {expected}, got: {loaded}")
+                result = False
+        else:
+            print("  ✗ Q-table key 'test_state' not found after load")
+            result = False
+
+    except Exception as e:
+        print(f"  ✗ Exception during persistence test: {e}")
+        result = False
+
+    finally:
+        # Clean up
+        if os.path.exists(models_dir):
+            shutil.rmtree(models_dir)
+
+    return result
+
+
 def run_all_tests():
     """Run all tests and report results"""
     print("=" * 60)
