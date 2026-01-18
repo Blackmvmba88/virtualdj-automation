@@ -18,6 +18,9 @@ class MachineSpiritPoet:
     creating an artistic narrative layer over the technical process.
     """
     
+    # Default fallback poem for when no fragments match
+    DEFAULT_POEM = "I listen, I wait, I am"
+    
     def __init__(self):
         """Initialize poetry generator."""
         # Poetic fragments for different contexts
@@ -181,7 +184,7 @@ class MachineSpiritPoet:
         
         # Combine fragments into poem
         if len(fragments) == 0:
-            return "I listen, I wait, I am"
+            return self.DEFAULT_POEM
         
         # Select 2-4 fragments
         num_lines = min(random.randint(2, 4), len(fragments))

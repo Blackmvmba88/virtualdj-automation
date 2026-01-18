@@ -167,12 +167,12 @@ class PsychedelicDJSystem:
                 vdj_state = self.observer.get_vdj_state()
                 
                 # Perform semantic analysis
-                audio_buffer = list(self.observer.audio_buffer)
-                if len(audio_buffer) > 1000:
-                    semantic_features = self.semantic.analyze(
-                        np.array(audio_buffer[-44100:]),  # Last second
-                        audio_features
-                    )
+                # Use numpy array slicing directly for efficiency
+                buffer_len = len(self.observer.audio_buffer)
+                if buffer_len > 1000:
+                    # Get last second of audio efficiently
+                    buffer_slice = np.array(list(self.observer.audio_buffer)[-44100:])
+                    semantic_features = self.semantic.analyze(buffer_slice, audio_features)
                 else:
                     semantic_features = self.semantic.last_analysis
                 
