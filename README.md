@@ -321,13 +321,23 @@ El controlador utiliza los siguientes mapeos MIDI por defecto:
 
 ```
 virtualdj-automation/
-├── midi_controller.py      # Control MIDI de VirtualDJ
-├── audio_observer.py        # Captura y análisis de audio
-├── adaptive_agent.py        # Agente de aprendizaje adaptativo
-├── test_script.py          # Script de prueba y demostración
-├── requirements.txt        # Dependencias Python
-├── .gitignore             # Archivos ignorados por Git
-└── README.md              # Esta documentación
+├── midi_controller.py           # Control MIDI de VirtualDJ
+├── audio_observer.py             # Captura y análisis de audio
+├── adaptive_agent.py             # Agente de aprendizaje adaptativo
+├── test_script.py               # Script de prueba y demostración
+├── test_unit.py                 # Tests unitarios
+│
+├── 🌈 Módulos Psicodélicos:
+├── dj_persona.py                # Sistema de personalidades DJ
+├── introspective_metrics.py     # Métricas psicológicas del agente
+├── semantic_analyzer.py         # Análisis semántico musical
+├── psychedelic_visualizer.py    # Motor de visualización OpenGL
+├── machine_spirit.py            # Generador de poesía
+├── psychedelic_demo.py          # Demo completo psicodélico
+│
+├── requirements.txt             # Dependencias Python
+├── .gitignore                  # Archivos ignorados por Git
+└── README.md                   # Esta documentación
 ```
 
 ## 🎓 Arquitectura del Sistema
@@ -364,17 +374,270 @@ virtualdj-automation/
 └─────────────────────────────────────────────────────────┘
 ```
 
+## 🌈 Características Psicodélicas
+
+### DJ Personas (dj_persona.py)
+
+El sistema incluye **4 personalidades de DJ** que alteran el estilo de mezcla:
+
+#### Personas Disponibles
+
+1. **Techno Detroit** 🏭
+   - Minimal, industrial, hipnótico
+   - BPM: 125-135
+   - Transiciones lentas y profundas
+   - EQ minimalista
+   - Factor experimental: 0.3
+
+2. **Psy-Trance Goa** 🕉️
+   - Psicodélico, trippy, alta energía
+   - BPM: 138-148
+   - Uso intensivo de efectos
+   - EQ dinámico
+   - Factor experimental: 0.6
+
+3. **Latin Bass** 🔥
+   - Reggaeton, dembow, perreo
+   - BPM: 90-105
+   - Cortes rápidos
+   - Énfasis en bajos
+   - Factor experimental: 0.4
+
+4. **Lo-Fi ChillHop** 🌙
+   - Relajado, jazzy, nostálgico
+   - BPM: 70-95
+   - Transiciones ultra-suaves
+   - EQ cálido
+   - Factor experimental: 0.2
+
+**Uso:**
+```python
+from dj_persona import PersonaAgent
+
+# Crear agente con personalidad
+agent = PersonaAgent(learning_mode='reinforcement', persona='psytrance_goa')
+
+# Cambiar personalidad
+agent.change_persona('techno_detroit')
+
+# Listar personalidades disponibles
+personas = PersonaAgent.list_personas()
+```
+
+### Métricas Introspectivas (introspective_metrics.py)
+
+Sistema que expone el estado interno del agente como **métricas psicológicas**:
+
+#### Métricas Disponibles
+
+- **Ansiedad (Anxiety)** 😰: Incertidumbre del agente (tasa de exploración)
+- **Confianza (Confidence)** 💪: Rendimiento percibido (recompensa promedio)
+- **Fantasía (Fantasy)** 🌟: Voluntad de experimentar
+- **Salud de Memoria** 🧠: Retención de experiencias
+- **Enfoque (Focus)** 🎯: Consistencia en decisiones
+- **Excitación (Excitement)** ⚡: Respuesta a alta energía
+
+**Estados Derivados:**
+- Mood: euphoric, confident, anxious, experimental, focused, calm, balanced
+- Creative State: highly_creative, creative, moderate, conservative
+- Learning Phase: early_exploration, active_learning, exploitation, experimentation, refinement
+
+**Uso:**
+```python
+from introspective_metrics import IntrospectiveMetrics
+
+metrics = IntrospectiveMetrics()
+
+# Actualizar métricas
+metrics.update(agent_state, audio_features, action)
+
+# Obtener estado psicológico
+state = metrics.get_state()
+print(f"Ansiedad: {state['anxiety']:.2f}")
+print(f"Mood: {state['mood']}")
+
+# Descripción narrativa
+description = metrics.get_narrative_description()
+print(description)
+```
+
+### Análisis Semántico Musical (semantic_analyzer.py)
+
+Análisis musical de alto nivel más allá de características básicas:
+
+#### Características Detectadas
+
+- **Densidad Percusiva**: Qué tan cargado de percusión está el audio
+- **Armonicidad vs Disonancia**: Contenido armónico vs atonal
+- **Presencia Vocal**: Detección de voces
+- **Escena Armónica**: Modo (mayor/menor), tono emocional
+- **Textura Musical**: sparse, dense, layered, percussive, harmonic, ambient
+
+#### Escenas Armónicas
+
+- `major_bright`: Mayor con baja disonancia (uplifting)
+- `major_energetic`: Mayor con disonancia moderada (energetic)
+- `minor_dark`: Menor con alta disonancia (dark)
+- `atonal_chaotic`: Baja armonía, alta disonancia (intense)
+- `percussive_neutral`: Baja armonía, baja disonancia (rhythmic)
+
+**Uso:**
+```python
+from semantic_analyzer import MusicalSemanticAnalyzer
+
+analyzer = MusicalSemanticAnalyzer()
+
+# Analizar buffer de audio
+semantic_features = analyzer.analyze(audio_buffer, audio_features)
+
+print(f"Densidad percusiva: {semantic_features['percussive_density']:.2f}")
+print(f"Presencia vocal: {semantic_features['vocal_presence']:.2f}")
+print(f"Escena: {semantic_features['harmonic_scene']}")
+print(f"Tono emocional: {semantic_features['emotional_tone']}")
+
+# Recomendación de transición
+recommendation = analyzer.get_transition_recommendation(scene1, scene2)
+print(f"Tipo: {recommendation['transition_type']}")
+print(f"Duración: {recommendation['duration']}s")
+```
+
+### Visualización Psicodélica (psychedelic_visualizer.py)
+
+Motor de visualización en tiempo real reactivo al audio y estado del agente:
+
+#### Características Visuales
+
+- **Fractales de Fondo**: Patrones geométricos animados
+- **Círculos de Energía**: Pulsos basados en energía
+- **Pulso de Beat**: Flash visual en beats
+- **División de Crossfader**: Split visual entre decks
+- **Distorsión por Reward**: Caos visual basado en rendimiento
+- **Paletas de Color**: Colores basados en mood del agente
+
+#### Modos de Visualización
+
+1. **OpenGL Mode**: Visualización completa con shaders (requiere pygame + PyOpenGL)
+2. **ASCII Mode**: Visualización en terminal (fallback)
+
+**Uso:**
+```python
+from psychedelic_visualizer import create_visualizer
+
+# Crear visualizador (auto-detecta OpenGL o usa ASCII)
+viz = create_visualizer(mode='auto', width=800, height=600)
+
+# Iniciar
+viz.start()
+
+# Actualizar estado
+viz.update(audio_features, agent_state, vdj_state)
+
+# Detener
+viz.stop()
+```
+
+**Instalación de dependencias de visualización:**
+```bash
+pip install pygame PyOpenGL
+```
+
+### Machine Spirit - Generador de Poesía (machine_spirit.py)
+
+El "Espíritu de la Máquina" genera poesía sobre las acciones del agente:
+
+#### Tipos de Poesía
+
+1. **Action Poems**: Descripciones poéticas de acciones individuales
+2. **State Poems**: Reflexiones sobre el estado psicológico
+3. **Session Epilogue**: Épica final de la sesión
+4. **Random Wisdom**: Citas filosóficas sobre el DJing
+
+**Ejemplos de Salida:**
+```
+The crossfader slides like a serpent of light
+the beat strikes
+energy explodes outward
+and harmony reigns
+```
+
+```
+Lost in the labyrinth of possibilities
+Each path uncertain, each choice a mystery
+The music roars like a storm
+And the beat carries me home
+```
+
+**Uso:**
+```python
+from machine_spirit import MachineSpiritPoet
+
+poet = MachineSpiritPoet()
+
+# Poema de acción
+poem = poet.generate_action_poem(action, audio_features, agent_state)
+print(poem)
+
+# Poema de estado
+state_poem = poet.generate_state_poem(agent_state, audio_features)
+print(state_poem)
+
+# Epílogo de sesión
+epilogue = poet.generate_session_epilogue(stats)
+print(epilogue)
+
+# Sabiduría aleatoria
+wisdom = poet.get_random_wisdom()
+print(wisdom)
+```
+
+### Demo Psicodélico Completo (psychedelic_demo.py)
+
+Script de demostración que integra todas las características:
+
+```bash
+python psychedelic_demo.py
+```
+
+#### Opciones de Demo
+
+1. Quick Demo (30s) - Techno Detroit
+2. Psy-Trance Session (60s)
+3. Latin Bass Session (45s)
+4. Lo-Fi ChillHop (60s)
+5. Comparación de Personas
+6. Modo Solo Poesía
+7. Showcase de Visualización
+
+**Uso Programático:**
+```python
+from psychedelic_demo import PsychedelicDJSystem
+
+# Crear sistema completo
+system = PsychedelicDJSystem(
+    persona='psytrance_goa',
+    enable_visualization=True,
+    enable_poetry=True
+)
+
+# Ejecutar loop psicodélico
+system.run_psychedelic_loop(duration=60.0, update_interval=3.0)
+```
+
 ## 🚧 Desarrollo Futuro
 
 ### Mejoras Planeadas
+- [x] Visualización en tiempo real ✅
+- [x] Sistema de personalidades DJ ✅
+- [x] Análisis semántico musical ✅
+- [x] Métricas psicológicas del agente ✅
 - [ ] Integración directa con VirtualDJ API
 - [ ] Soporte para más controladores MIDI físicos
 - [ ] Deep Q-Network (DQN) para aprendizaje profundo
-- [ ] Interfaz gráfica (GUI)
+- [ ] Control por visión/gestos (Kinect/webcam)
+- [ ] Análisis de reacción del público
 - [ ] Análisis de género musical
 - [ ] Recomendación de próxima pista
 - [ ] Grabación y replay de sesiones
-- [ ] Visualización en tiempo real
 - [ ] Soporte multi-idioma
 - [ ] Plugin para VirtualDJ
 
