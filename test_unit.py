@@ -328,6 +328,74 @@ def test_model_persistence():
     return result
 
 
+def test_new_modules():
+    """Test that new psychedelic modules exist and work."""
+    print("\nTest 10: Checking new psychedelic modules...")
+    
+    # Check that files exist
+    new_modules = [
+        'dj_persona.py',
+        'introspective_metrics.py',
+        'semantic_analyzer.py',
+        'psychedelic_visualizer.py',
+        'machine_spirit.py'
+    ]
+    
+    for module in new_modules:
+        if os.path.exists(module):
+            print(f"  ✓ {module} exists")
+        else:
+            print(f"  ✗ {module} missing")
+            return False
+    
+    # Test that key classes can be imported
+    try:
+        from dj_persona import DJPersona, PersonaAgent
+        print("  ✓ DJPersona and PersonaAgent classes can be imported")
+        
+        from introspective_metrics import IntrospectiveMetrics
+        print("  ✓ IntrospectiveMetrics class can be imported")
+        
+        from semantic_analyzer import MusicalSemanticAnalyzer
+        print("  ✓ MusicalSemanticAnalyzer class can be imported")
+        
+        from psychedelic_visualizer import create_visualizer
+        print("  ✓ Visualizer can be imported")
+        
+        from machine_spirit import MachineSpiritPoet
+        print("  ✓ MachineSpiritPoet class can be imported")
+        
+    except Exception as e:
+        print(f"  ✗ Error importing new modules: {e}")
+        return False
+    
+    # Test basic functionality
+    try:
+        # Test persona
+        persona = DJPersona('techno_detroit')
+        assert persona.persona_name == 'techno_detroit'
+        print("  ✓ DJPersona initialization works")
+        
+        # Test introspective metrics
+        metrics = IntrospectiveMetrics()
+        state = metrics.get_state()
+        assert 'anxiety' in state
+        assert 'confidence' in state
+        print("  ✓ IntrospectiveMetrics basic functionality works")
+        
+        # Test poet
+        poet = MachineSpiritPoet()
+        wisdom = poet.get_random_wisdom()
+        assert len(wisdom) > 0
+        print("  ✓ MachineSpiritPoet generates text")
+        
+    except Exception as e:
+        print(f"  ✗ Error testing module functionality: {e}")
+        return False
+    
+    return True
+
+
 def run_all_tests():
     """Run all tests and report results"""
     print("=" * 60)
@@ -342,7 +410,9 @@ def run_all_tests():
         test_requirements,
         test_midi_mappings,
         test_learning_modes,
-        test_audio_features
+        test_audio_features,
+        test_model_persistence,
+        test_new_modules
     ]
     
     results = []
