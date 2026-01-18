@@ -52,7 +52,11 @@ class AudioObserver:
             'spectral_centroid': 0.0,
             'spectral_rolloff': 0.0,
             'zero_crossing_rate': 0.0,
-            'energy': 0.0
+            'energy': 0.0,
+            'low_band_balance': 0.0,
+            'mid_band_balance': 0.0,
+            'high_band_balance': 0.0,
+            'quality_score': 0.5
         }
         
         # Beat detection state
@@ -188,6 +192,12 @@ class AudioObserver:
             zcr = np.mean(librosa.feature.zero_crossing_rate(audio_data))
             
             # Spectral features (require FFT)
+            spectral_centroid = 0.0
+            spectral_rolloff = 0.0
+            low_band_balance = 0.0
+            mid_band_balance = 0.0
+            high_band_balance = 0.0
+            
             if len(audio_data) >= 2048:
                 # Spectral Centroid
                 spectral_centroids = librosa.feature.spectral_centroid(
@@ -200,12 +210,49 @@ class AudioObserver:
                     y=audio_data, sr=self.sample_rate
                 )
                 spectral_rolloff = np.mean(spectral_rolloffs)
-            else:
-                spectral_centroid = 0.0
-                spectral_rolloff = 0.0
+                
+                # Calculate spectral band balances
+                # Get FFT for frequency analysis
+                fft = np.fft.rfft(audio_data)
+                magnitude = np.abs(fft)
+                freqs = np.fft.rfftfreq(len(audio_data), 1.0/self.sample_rate)
+                
+                # Define frequency bands (Hz)
+                low_band = (20, 250)    # Bass
+                mid_band = (250, 2000)  # Mids
+                high_band = (2000, 8000) # Highs
+                
+                # Calculate energy in each band
+                low_mask = (freqs >= low_band[0]) & (freqs < low_band[1])
+                mid_mask = (freqs >= mid_band[0]) & (freqs < mid_band[1])
+                high_mask = (freqs >= high_band[0]) & (freqs < high_band[1])
+                
+                low_energy = np.sum(magnitude[low_mask] ** 2)
+                mid_energy = np.sum(magnitude[mid_mask] ** 2)
+                high_energy = np.sum(magnitude[high_mask] ** 2)
+                
+                total_energy = low_energy + mid_energy + high_energy
+                
+                if total_energy > 0:
+                    # Balance = (energy_deck_a - energy_deck_b) / total
+                    # For now, simulated as deviation from equal distribution (1/3 each)
+                    low_ratio = low_energy / total_energy
+                    mid_ratio = mid_energy / total_energy
+                    high_ratio = high_energy / total_energy
+                    
+                    # Balance: deviation from 0.33 (ideal equal distribution)
+                    low_band_balance = (low_ratio - 0.33) * 3.0  # Scale to ~[-1, 1]
+                    mid_band_balance = (mid_ratio - 0.33) * 3.0
+                    high_band_balance = (high_ratio - 0.33) * 3.0
             
             # Beat detection (simple energy-based)
             beat_detected = self._detect_beat(energy)
+            
+            # Calculate quality score
+            quality_score = self._calculate_quality_score(
+                rms_db, energy, spectral_centroid, 
+                low_band_balance, mid_band_balance, high_band_balance
+            )
             
             # Update current features
             with self.lock:
@@ -216,7 +263,11 @@ class AudioObserver:
                     'spectral_centroid': float(spectral_centroid),
                     'spectral_rolloff': float(spectral_rolloff),
                     'zero_crossing_rate': float(zcr),
-                    'energy': float(energy)
+                    'energy': float(energy),
+                    'low_band_balance': float(low_band_balance),
+                    'mid_band_balance': float(mid_band_balance),
+                    'high_band_balance': float(high_band_balance),
+                    'quality_score': float(quality_score)
                 })
                 
                 # Estimate BPM from beat history
@@ -228,6 +279,54 @@ class AudioObserver:
         
         except Exception as e:
             print(f"Error extracting features: {e}")
+    
+    def _calculate_quality_score(self, rms_db: float, energy: float, 
+                                  spectral_centroid: float, 
+                                  low_balance: float, mid_balance: float, 
+                                  high_balance: float) -> float:
+        """
+        Calculate overall mix quality score based on audio features.
+        
+        Args:
+            rms_db: RMS level in dB
+            energy: Audio energy
+            spectral_centroid: Spectral centroid
+            low_balance: Low frequency band balance
+            mid_balance: Mid frequency band balance
+            high_balance: High frequency band balance
+            
+        Returns:
+            Quality score between 0.0 and 1.0
+        """
+        quality_score = 0.0
+        
+        # RMS level check (should be in good range)
+        if -20 <= rms_db <= -6:
+            quality_score += 0.3
+        elif -30 <= rms_db <= -3:
+            quality_score += 0.15
+        
+        # Energy consistency
+        if energy > 0.01:
+            quality_score += 0.2
+        
+        # Spectral balance
+        if 1000 < spectral_centroid < 3000:
+            quality_score += 0.2
+        
+        # Band balance check - penalize extreme imbalances
+        balance_penalty = 0.0
+        for balance in [low_balance, mid_balance, high_balance]:
+            if abs(balance) > 0.5:
+                balance_penalty += 0.05
+        
+        quality_score = max(0.0, quality_score - balance_penalty)
+        
+        # BPM presence adds to quality
+        if self.current_features.get('bpm', 0.0) > 0:
+            quality_score += 0.1
+        
+        return min(1.0, quality_score)
     
     def _detect_beat(self, energy: float) -> bool:
         """
