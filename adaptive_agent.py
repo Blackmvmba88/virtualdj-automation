@@ -84,6 +84,19 @@ class AdaptiveAgent:
             'eq_transition_rate': 0.1,
             'effect_probability': 0.15
         }
+        
+        # Reward system weights
+        self.reward_weights = {
+            'w_rms': 0.25,
+            'w_bpm': 0.2,
+            'w_energy': 0.15,
+            'w_xfade': 0.2,
+            'w_spectral': 0.2
+        }
+        
+        # Internal state for reward calculation
+        self.prev_energy = None
+        self.prev_vdj_state = None
     
     def _load_models(self):
         """Load pre-trained models if they exist."""
@@ -415,57 +428,212 @@ class AdaptiveAgent:
         except Exception as e:
             print(f"Error training supervised model: {e}")
     
-    def calculate_reward(self, audio_features: Dict, vdj_state: Dict, 
-                        prev_audio_features: Optional[Dict] = None) -> float:
+    def _reward_rms(self, rms_db: float, target: float = -16.0, margin: float = 8.0) -> float:
         """
-        Calculate reward signal based on mix quality.
+        Calculate reward for RMS level being in sweet spot.
         
         Args:
-            audio_features: Current audio features
-            vdj_state: Current VirtualDJ state
-            prev_audio_features: Previous audio features for comparison
+            rms_db: Current RMS level in dB
+            target: Target RMS level in dB
+            margin: Acceptable margin around target
             
         Returns:
             Reward value (higher is better)
         """
-        reward = 0.0
+        diff = abs(rms_db - target)
+        r = max(0.0, 1.0 - diff / margin)
         
-        # Reward for maintaining good RMS level
-        rms_db = audio_features.get('rms_db', -80.0)
-        if self.mix_params['optimal_rms_range'][0] <= rms_db <= self.mix_params['optimal_rms_range'][1]:
-            reward += 1.0
+        # Strong penalty for clipping or too low
+        if rms_db > -1.0:  # Almost clipping
+            r -= 0.7
+        if rms_db < -40.0:  # Too low
+            r -= 0.5
+        
+        return max(-1.0, r)
+    
+    def _reward_bpm_match(self, bpm_a: float, bpm_b: float, max_diff: float = 6.0) -> float:
+        """
+        Calculate reward for BPM matching between decks.
+        
+        Args:
+            bpm_a: BPM of deck A
+            bpm_b: BPM of deck B
+            max_diff: Maximum acceptable BPM difference
+            
+        Returns:
+            Reward value between 0.0 and 1.0
+        """
+        if bpm_a <= 0 or bpm_b <= 0:
+            return 0.0
+        
+        diff = min(abs(bpm_a - bpm_b), max_diff)
+        return max(0.0, 1.0 - diff / max_diff)
+    
+    def _reward_energy_flow(self, current_energy: float, prev_energy: Optional[float], 
+                            max_delta: float = 0.4) -> float:
+        """
+        Calculate reward for smooth energy transitions.
+        
+        Args:
+            current_energy: Current energy level
+            prev_energy: Previous energy level
+            max_delta: Maximum acceptable energy change
+            
+        Returns:
+            Reward value between 0.0 and 1.0
+        """
+        if prev_energy is None:
+            return 0.5  # Neutral at start
+        
+        delta = abs(current_energy - prev_energy)
+        return max(0.0, 1.0 - delta / max_delta)
+    
+    def _reward_crossfader(self, prev_pos: float, current_pos: float, 
+                           beat_detected: bool, min_move: float = 0.02, 
+                           max_move: float = 0.3) -> float:
+        """
+        Calculate reward for crossfader behavior.
+        
+        Args:
+            prev_pos: Previous crossfader position
+            current_pos: Current crossfader position
+            beat_detected: Whether a beat was detected
+            min_move: Minimum movement to be considered intentional
+            max_move: Maximum movement before being considered too abrupt
+            
+        Returns:
+            Reward value between -1.0 and 1.0
+        """
+        movement = abs(current_pos - prev_pos)
+        
+        # No movement - neutral
+        if movement < min_move:
+            return 0.0
+        
+        # Too much movement - penalty
+        if movement > max_move:
+            base = -0.5
         else:
-            # Penalty for being outside optimal range
-            deviation = min(
-                abs(rms_db - self.mix_params['optimal_rms_range'][0]),
-                abs(rms_db - self.mix_params['optimal_rms_range'][1])
-            )
-            reward -= deviation * 0.1
+            base = movement / max_move  # 0 to 1
         
-        # Reward for energy consistency
-        if prev_audio_features:
-            energy_change = abs(audio_features.get('energy', 0.0) - 
-                              prev_audio_features.get('energy', 0.0))
-            if energy_change < 0.1:
-                reward += 0.5  # Smooth transition
-            else:
-                reward -= energy_change * 0.5  # Jarring transition
+        # Bonus if movement coincides with beat
+        if beat_detected:
+            base += 0.3
         
-        # Reward for beat synchronization
-        if audio_features.get('beat_detected', False):
-            reward += 0.3
+        return np.clip(base, -1.0, 1.0)
+    
+    def _reward_spectral_balance(self, low_balance: float, mid_balance: float, 
+                                  high_balance: float, max_diff: float = 0.8) -> float:
+        """
+        Calculate reward for spectral balance.
         
-        # Penalty for extreme crossfader positions without playing decks
-        crossfader = vdj_state.get('crossfader_position', 0.5)
-        deck_a_playing = vdj_state.get('deck_a_playing', False)
-        deck_b_playing = vdj_state.get('deck_b_playing', False)
+        Args:
+            low_balance: Low frequency band balance
+            mid_balance: Mid frequency band balance
+            high_balance: High frequency band balance
+            max_diff: Maximum acceptable imbalance
+            
+        Returns:
+            Reward value between 0.0 and 1.0
+        """
+        low_r = max(0.0, 1.0 - abs(low_balance) / max_diff)
+        mid_r = max(0.0, 1.0 - abs(mid_balance) / max_diff)
+        high_r = max(0.0, 1.0 - abs(high_balance) / max_diff)
+        return (low_r + mid_r + high_r) / 3.0
+    
+    def _reward_quality_base(self, quality_score: float) -> float:
+        """
+        Calculate base reward from quality score.
         
-        if crossfader < 0.2 and not deck_a_playing:
-            reward -= 0.5
-        if crossfader > 0.8 and not deck_b_playing:
-            reward -= 0.5
+        Args:
+            quality_score: Quality score from AudioObserver
+            
+        Returns:
+            Reward value between 0.0 and 1.0
+        """
+        return max(0.0, min(1.0, quality_score))
+    
+    def calculate_reward(self, audio_features: Dict, vdj_state: Dict, 
+                        prev_audio_features: Optional[Dict] = None) -> float:
+        """
+        Calculate comprehensive reward signal based on mix quality.
         
-        return reward
+        This implements a weighted combination of multiple sub-rewards:
+        - RMS level (sweet spot)
+        - BPM matching between decks
+        - Energy flow consistency
+        - Crossfader behavior
+        - Spectral balance
+        
+        Args:
+            audio_features: Current audio features
+            vdj_state: Current VirtualDJ state
+            prev_audio_features: Previous audio features for comparison (deprecated, uses internal state)
+            
+        Returns:
+            Reward value (typically between -1.0 and 1.0, higher is better)
+        """
+        # Extract features
+        rms_db = audio_features.get('rms_db', -30.0)
+        energy = audio_features.get('energy', 0.5)
+        bpm = audio_features.get('bpm', 0.0)
+        beat_detected = audio_features.get('beat_detected', False)
+        low_balance = audio_features.get('low_band_balance', 0.0)
+        mid_balance = audio_features.get('mid_band_balance', 0.0)
+        high_balance = audio_features.get('high_band_balance', 0.0)
+        quality_score = audio_features.get('quality_score', 0.5)
+        
+        # Extract VDJ state
+        current_xf = vdj_state.get('crossfader_position', 0.5)
+        bpm_a = vdj_state.get('deck_a_bpm', 0.0)
+        bpm_b = vdj_state.get('deck_b_bpm', 0.0)
+        
+        # Use BPM from audio features if deck BPMs not available
+        if bpm_a == 0.0 and bpm_b == 0.0 and bpm > 0.0:
+            # Simulate deck BPMs based on crossfader position
+            bpm_a = bpm if current_xf < 0.5 else bpm * 0.98
+            bpm_b = bpm if current_xf >= 0.5 else bpm * 1.02
+        
+        # Get previous crossfader position
+        prev_xf = 0.5
+        if self.prev_vdj_state is not None:
+            prev_xf = self.prev_vdj_state.get('crossfader_position', current_xf)
+        
+        # Calculate sub-rewards
+        r_rms = self._reward_rms(rms_db)
+        r_bpm = self._reward_bpm_match(bpm_a, bpm_b)
+        r_energy = self._reward_energy_flow(energy, self.prev_energy)
+        r_xf = self._reward_crossfader(prev_xf, current_xf, beat_detected)
+        r_spec = self._reward_spectral_balance(low_balance, mid_balance, high_balance)
+        r_quality = self._reward_quality_base(quality_score)
+        
+        # Combine quality and RMS for mix reward
+        r_mix = 0.5 * r_rms + 0.5 * r_quality
+        
+        # Weighted combination of all sub-rewards
+        total = (
+            self.reward_weights['w_rms'] * r_mix +
+            self.reward_weights['w_bpm'] * r_bpm +
+            self.reward_weights['w_energy'] * r_energy +
+            self.reward_weights['w_xfade'] * r_xf +
+            self.reward_weights['w_spectral'] * r_spec
+        )
+        
+        # Hard penalties
+        if rms_db < -55.0:  # Silence penalty
+            total -= 0.7
+        
+        if rms_db > -3.0:  # Clipping penalty
+            total -= 0.5
+        
+        # Clamp to reasonable range
+        total = np.clip(total, -1.0, 1.0)
+        
+        # Update internal state for next iteration
+        self.prev_energy = energy
+        self.prev_vdj_state = vdj_state.copy()
+        
+        return total
     
     def get_statistics(self) -> Dict:
         """
@@ -498,7 +666,96 @@ class AdaptiveAgent:
         self.action_history.clear()
         self.reward_history.clear()
         self.experience_buffer.clear()
+        self.prev_energy = None
+        self.prev_vdj_state = None
         print("Agent state reset")
+    
+    def get_reward_breakdown(self, audio_features: Dict, vdj_state: Dict) -> Dict:
+        """
+        Get detailed breakdown of reward components for debugging/analysis.
+        
+        Args:
+            audio_features: Current audio features
+            vdj_state: Current VirtualDJ state
+            
+        Returns:
+            Dictionary with individual reward components and total
+        """
+        # Extract features
+        rms_db = audio_features.get('rms_db', -30.0)
+        energy = audio_features.get('energy', 0.5)
+        bpm = audio_features.get('bpm', 0.0)
+        beat_detected = audio_features.get('beat_detected', False)
+        low_balance = audio_features.get('low_band_balance', 0.0)
+        mid_balance = audio_features.get('mid_band_balance', 0.0)
+        high_balance = audio_features.get('high_band_balance', 0.0)
+        quality_score = audio_features.get('quality_score', 0.5)
+        
+        # Extract VDJ state
+        current_xf = vdj_state.get('crossfader_position', 0.5)
+        bpm_a = vdj_state.get('deck_a_bpm', 0.0)
+        bpm_b = vdj_state.get('deck_b_bpm', 0.0)
+        
+        # Use BPM from audio features if deck BPMs not available
+        if bpm_a == 0.0 and bpm_b == 0.0 and bpm > 0.0:
+            bpm_a = bpm if current_xf < 0.5 else bpm * 0.98
+            bpm_b = bpm if current_xf >= 0.5 else bpm * 1.02
+        
+        # Get previous crossfader position
+        prev_xf = 0.5
+        if self.prev_vdj_state is not None:
+            prev_xf = self.prev_vdj_state.get('crossfader_position', current_xf)
+        
+        # Calculate sub-rewards
+        r_rms = self._reward_rms(rms_db)
+        r_bpm = self._reward_bpm_match(bpm_a, bpm_b)
+        r_energy = self._reward_energy_flow(energy, self.prev_energy)
+        r_xf = self._reward_crossfader(prev_xf, current_xf, beat_detected)
+        r_spec = self._reward_spectral_balance(low_balance, mid_balance, high_balance)
+        r_quality = self._reward_quality_base(quality_score)
+        
+        # Mix reward
+        r_mix = 0.5 * r_rms + 0.5 * r_quality
+        
+        # Weighted total
+        total = (
+            self.reward_weights['w_rms'] * r_mix +
+            self.reward_weights['w_bpm'] * r_bpm +
+            self.reward_weights['w_energy'] * r_energy +
+            self.reward_weights['w_xfade'] * r_xf +
+            self.reward_weights['w_spectral'] * r_spec
+        )
+        
+        # Check penalties
+        silence_penalty = -0.7 if rms_db < -55.0 else 0.0
+        clipping_penalty = -0.5 if rms_db > -3.0 else 0.0
+        
+        total_with_penalties = np.clip(total + silence_penalty + clipping_penalty, -1.0, 1.0)
+        
+        return {
+            'sub_rewards': {
+                'rms': r_rms,
+                'bpm_match': r_bpm,
+                'energy_flow': r_energy,
+                'crossfader': r_xf,
+                'spectral_balance': r_spec,
+                'quality': r_quality,
+                'mix': r_mix
+            },
+            'weighted_contributions': {
+                'rms': self.reward_weights['w_rms'] * r_mix,
+                'bpm': self.reward_weights['w_bpm'] * r_bpm,
+                'energy': self.reward_weights['w_energy'] * r_energy,
+                'xfade': self.reward_weights['w_xfade'] * r_xf,
+                'spectral': self.reward_weights['w_spectral'] * r_spec
+            },
+            'penalties': {
+                'silence': silence_penalty,
+                'clipping': clipping_penalty
+            },
+            'total_before_penalties': total,
+            'total': total_with_penalties
+        }
 
 
 if __name__ == "__main__":
