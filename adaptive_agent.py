@@ -666,7 +666,96 @@ class AdaptiveAgent:
         self.action_history.clear()
         self.reward_history.clear()
         self.experience_buffer.clear()
+        self.prev_energy = None
+        self.prev_vdj_state = None
         print("Agent state reset")
+    
+    def get_reward_breakdown(self, audio_features: Dict, vdj_state: Dict) -> Dict:
+        """
+        Get detailed breakdown of reward components for debugging/analysis.
+        
+        Args:
+            audio_features: Current audio features
+            vdj_state: Current VirtualDJ state
+            
+        Returns:
+            Dictionary with individual reward components and total
+        """
+        # Extract features
+        rms_db = audio_features.get('rms_db', -30.0)
+        energy = audio_features.get('energy', 0.5)
+        bpm = audio_features.get('bpm', 0.0)
+        beat_detected = audio_features.get('beat_detected', False)
+        low_balance = audio_features.get('low_band_balance', 0.0)
+        mid_balance = audio_features.get('mid_band_balance', 0.0)
+        high_balance = audio_features.get('high_band_balance', 0.0)
+        quality_score = audio_features.get('quality_score', 0.5)
+        
+        # Extract VDJ state
+        current_xf = vdj_state.get('crossfader_position', 0.5)
+        bpm_a = vdj_state.get('deck_a_bpm', 0.0)
+        bpm_b = vdj_state.get('deck_b_bpm', 0.0)
+        
+        # Use BPM from audio features if deck BPMs not available
+        if bpm_a == 0.0 and bpm_b == 0.0 and bpm > 0.0:
+            bpm_a = bpm if current_xf < 0.5 else bpm * 0.98
+            bpm_b = bpm if current_xf >= 0.5 else bpm * 1.02
+        
+        # Get previous crossfader position
+        prev_xf = 0.5
+        if self.prev_vdj_state is not None:
+            prev_xf = self.prev_vdj_state.get('crossfader_position', current_xf)
+        
+        # Calculate sub-rewards
+        r_rms = self._reward_rms(rms_db)
+        r_bpm = self._reward_bpm_match(bpm_a, bpm_b)
+        r_energy = self._reward_energy_flow(energy, self.prev_energy)
+        r_xf = self._reward_crossfader(prev_xf, current_xf, beat_detected)
+        r_spec = self._reward_spectral_balance(low_balance, mid_balance, high_balance)
+        r_quality = self._reward_quality_base(quality_score)
+        
+        # Mix reward
+        r_mix = 0.5 * r_rms + 0.5 * r_quality
+        
+        # Weighted total
+        total = (
+            self.reward_weights['w_rms'] * r_mix +
+            self.reward_weights['w_bpm'] * r_bpm +
+            self.reward_weights['w_energy'] * r_energy +
+            self.reward_weights['w_xfade'] * r_xf +
+            self.reward_weights['w_spectral'] * r_spec
+        )
+        
+        # Check penalties
+        silence_penalty = -0.7 if rms_db < -55.0 else 0.0
+        clipping_penalty = -0.5 if rms_db > -3.0 else 0.0
+        
+        total_with_penalties = max(-1.0, min(1.0, total + silence_penalty + clipping_penalty))
+        
+        return {
+            'sub_rewards': {
+                'rms': r_rms,
+                'bpm_match': r_bpm,
+                'energy_flow': r_energy,
+                'crossfader': r_xf,
+                'spectral_balance': r_spec,
+                'quality': r_quality,
+                'mix': r_mix
+            },
+            'weighted_contributions': {
+                'rms': self.reward_weights['w_rms'] * r_mix,
+                'bpm': self.reward_weights['w_bpm'] * r_bpm,
+                'energy': self.reward_weights['w_energy'] * r_energy,
+                'xfade': self.reward_weights['w_xfade'] * r_xf,
+                'spectral': self.reward_weights['w_spectral'] * r_spec
+            },
+            'penalties': {
+                'silence': silence_penalty,
+                'clipping': clipping_penalty
+            },
+            'total_before_penalties': total,
+            'total': total_with_penalties
+        }
 
 
 if __name__ == "__main__":

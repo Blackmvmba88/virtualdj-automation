@@ -30,7 +30,8 @@ Este sistema implementa una solución completa para controlar VirtualDJ de forma
   - Centroide espectral
   - Rolloff espectral
   - Zero-crossing rate
-- **Estimación de calidad**: Score de calidad de mezcla en tiempo real
+  - **Balance espectral por bandas** (bajos, medios, agudos)
+- **Estimación de calidad**: Score de calidad de mezcla en tiempo real (0.0-1.0)
 - **Lectura de estado**: Integración con estado de VirtualDJ
 
 ### Agente Adaptativo
@@ -48,6 +49,14 @@ Este sistema implementa una solución completa para controlar VirtualDJ de forma
   - Actualización de valores Q
   - Buffer de experiencia
   - Decaimiento de exploración
+  - **Sistema de Recompensas Optimizado**:
+    - RMS Level (sweet spot): Mantiene niveles óptimos de audio
+    - BPM Matching: Sincronización entre decks
+    - Energy Flow: Transiciones suaves de energía
+    - Crossfader Behavior: Movimientos coherentes y beat-aligned
+    - Spectral Balance: Balance de frecuencias (bajos, medios, agudos)
+    - Penalizaciones por clipping y silencio
+    - Pesos configurables para cada componente
 
 ## 📦 Instalación
 
@@ -251,6 +260,52 @@ system.run_automation_loop(duration=60.0, update_interval=2.0)
 - Mejora con el tiempo
 
 **Cuándo usar**: Para optimización continua y adaptación a diferentes estilos.
+
+#### Sistema de Recompensas
+
+El modo de refuerzo utiliza un sistema de recompensas multi-componente que evalúa:
+
+**Fórmula de Recompensa Total:**
+```
+R_total = w_rms × R_mix + w_bpm × R_bpm + w_energy × R_energy + 
+          w_xfade × R_xfade + w_spectral × R_spectral - P_clipping - P_silence
+```
+
+**Componentes de Recompensa:**
+
+1. **R_mix (RMS + Calidad)**: Evalúa nivel de audio en "sweet spot" (-16 dB ± 8 dB)
+   - Penaliza clipping (> -1 dB) y niveles muy bajos (< -40 dB)
+   - Combina con score de calidad general
+
+2. **R_bpm**: Recompensa por matching de BPM entre decks
+   - Máximo reward cuando BPMs coinciden
+   - Penaliza diferencias > 6 BPM
+
+3. **R_energy**: Evalúa fluidez de transiciones energéticas
+   - Recompensa cambios suaves (< 0.4)
+   - Penaliza saltos abruptos de energía
+
+4. **R_xfade**: Evalúa comportamiento del crossfader
+   - Recompensa movimientos coherentes (0.02 - 0.3)
+   - Bonus por transiciones en beat
+   - Penaliza micro-movimientos o cambios bruscos
+
+5. **R_spectral**: Balance de frecuencias (bajos, medios, agudos)
+   - Recompensa distribución equilibrada
+   - Penaliza exceso de bajos o desbalances extremos
+
+**Pesos por Defecto:**
+- w_rms: 0.25
+- w_bpm: 0.20
+- w_energy: 0.15
+- w_xfade: 0.20
+- w_spectral: 0.20
+
+**Penalizaciones:**
+- Silencio (< -55 dB): -0.7
+- Clipping (> -3 dB): -0.5
+
+Los pesos son ajustables según el estilo de mezcla deseado.
 
 ## 📊 Métricas y Análisis
 

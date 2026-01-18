@@ -122,6 +122,15 @@ class VirtualDJAutomationSystem:
                     reward = self.agent.calculate_reward(audio_features, vdj_state, self.prev_audio_features)
                     self.agent.update_q_value(reward)
                     print(f"Reward: {reward:.2f}")
+                    
+                    # Display reward breakdown every 5 iterations for debugging
+                    if iteration % 5 == 0:
+                        breakdown = self.agent.get_reward_breakdown(audio_features, vdj_state)
+                        print("\n  Reward Breakdown:")
+                        for key, value in breakdown['weighted_contributions'].items():
+                            print(f"    {key:10s}: {value:+.3f}")
+                        if breakdown['penalties']['silence'] != 0 or breakdown['penalties']['clipping'] != 0:
+                            print(f"    Penalties: silence={breakdown['penalties']['silence']:.2f}, clipping={breakdown['penalties']['clipping']:.2f}")
                 
                 # Display current state
                 self._display_status(audio_features, vdj_state, actions)
