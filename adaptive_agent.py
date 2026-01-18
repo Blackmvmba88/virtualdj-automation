@@ -520,7 +520,7 @@ class AdaptiveAgent:
         if beat_detected:
             base += 0.3
         
-        return max(-1.0, min(1.0, base))
+        return np.clip(base, -1.0, 1.0)
     
     def _reward_spectral_balance(self, low_balance: float, mid_balance: float, 
                                   high_balance: float, max_diff: float = 0.8) -> float:
@@ -627,7 +627,7 @@ class AdaptiveAgent:
             total -= 0.5
         
         # Clamp to reasonable range
-        total = max(-1.0, min(1.0, total))
+        total = np.clip(total, -1.0, 1.0)
         
         # Update internal state for next iteration
         self.prev_energy = energy
@@ -730,7 +730,7 @@ class AdaptiveAgent:
         silence_penalty = -0.7 if rms_db < -55.0 else 0.0
         clipping_penalty = -0.5 if rms_db > -3.0 else 0.0
         
-        total_with_penalties = max(-1.0, min(1.0, total + silence_penalty + clipping_penalty))
+        total_with_penalties = np.clip(total + silence_penalty + clipping_penalty, -1.0, 1.0)
         
         return {
             'sub_rewards': {

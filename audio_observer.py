@@ -326,7 +326,7 @@ class AudioObserver:
         if self.current_features.get('bpm', 0.0) > 0:
             quality_score += 0.1
         
-        return min(1.0, quality_score)
+        return np.clip(quality_score, 0.0, 1.0)
     
     def _detect_beat(self, energy: float) -> bool:
         """
