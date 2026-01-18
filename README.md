@@ -678,6 +678,27 @@ system = PsychedelicDJSystem(
 system.run_psychedelic_loop(duration=60.0, update_interval=3.0)
 ```
 
+## 🧠 EPIC SYSTEM - Framework Educativo de Diseño de Circuitos
+
+Este repositorio también contiene documentación del **EPIC SYSTEM**, un framework educativo multi-capa para enseñanza de diseño de circuitos electrónicos:
+
+### 📚 Documentación EPIC SYSTEM
+
+- **[EPIC_SYSTEM.md](EPIC_SYSTEM.md)** - Framework completo de 7 capas (Física, Geométrica, Eléctrica, Semántica, Cognitiva, Pedagógica, Estética)
+- **[FIRST_CIRCUIT.md](FIRST_CIRCUIT.md)** - Circuito ejemplo: LED + Resistor limitadora, con análisis completo por capas
+- **[RULE_ENGINE_0.1.md](RULE_ENGINE_0.1.md)** - Especificación del motor de inferencia causal para diagnóstico y enseñanza
+
+### 🎯 Propósito
+
+El EPIC SYSTEM transforma la electrónica de "conocimiento tribal" a cognición explícita, permitiendo:
+- Razonamiento causal automático ("Si VCC < Vf entonces LED no ilumina")
+- Diagnóstico inteligente de circuitos
+- Tutoriales adaptativos
+- Validación de diseños
+- Generación de explicaciones pedagógicas
+
+*"Convierte electrónica en lenguaje, y lenguaje en inferencia."*
+
 ## 🚧 Desarrollo Futuro
 
 ### Mejoras Planeadas
