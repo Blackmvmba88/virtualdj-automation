@@ -13,6 +13,7 @@ def test_module_structure():
         'midi_controller.py',
         'audio_observer.py', 
         'adaptive_agent.py',
+        'test_controller_agent.py',
         'test_script.py',
         'requirements.txt',
         'README.md'
@@ -35,6 +36,7 @@ def test_python_syntax():
         'midi_controller.py',
         'audio_observer.py',
         'adaptive_agent.py',
+        'test_controller_agent.py',
         'test_script.py'
     ]
     
@@ -396,6 +398,26 @@ def test_new_modules():
     return True
 
 
+def test_controller_agent_behavior():
+    """Run behavioral validation tests for the controller and agent."""
+    print("\nTest 11: Checking controller and agent behavior...")
+    import unittest
+    from test_controller_agent import (
+        AdaptiveAgentValidationTests,
+        MIDIControllerValidationTests,
+    )
+
+    suite = unittest.TestSuite()
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(
+        MIDIControllerValidationTests
+    ))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(
+        AdaptiveAgentValidationTests
+    ))
+    result = unittest.TextTestRunner(verbosity=1).run(suite)
+    return result.wasSuccessful()
+
+
 def run_all_tests():
     """Run all tests and report results"""
     print("=" * 60)
@@ -412,7 +434,8 @@ def run_all_tests():
         test_learning_modes,
         test_audio_features,
         test_model_persistence,
-        test_new_modules
+        test_new_modules,
+        test_controller_agent_behavior
     ]
     
     results = []
