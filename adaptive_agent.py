@@ -8,6 +8,8 @@ using heuristics, supervised learning, and reinforcement learning approaches.
 import numpy as np
 import pickle
 import os
+import math
+from collections.abc import Mapping
 from typing import Dict, List, Tuple, Optional
 from collections import deque
 import time
@@ -26,6 +28,8 @@ class AdaptiveAgent:
     Adaptive agent that learns to optimize DJ mixing using multiple learning approaches.
     """
     
+    VALID_LEARNING_MODES = {'heuristic', 'supervised', 'reinforcement'}
+
     def __init__(self, learning_mode: str = 'heuristic', model_path: Optional[str] = None, random_seed: Optional[int] = None):
         """
         Initialize adaptive agent.
@@ -35,13 +39,22 @@ class AdaptiveAgent:
             model_path: Path to save/load trained models
             random_seed: Seed for random number generator (for reproducibility)
         """
+        if not isinstance(learning_mode, str):
+            raise TypeError("learning_mode must be a string")
+        if learning_mode not in self.VALID_LEARNING_MODES:
+            valid_modes = ', '.join(sorted(self.VALID_LEARNING_MODES))
+            raise ValueError(f"learning_mode must be one of: {valid_modes}")
+        if random_seed is not None and (
+            isinstance(random_seed, bool) or not isinstance(random_seed, int)
+        ):
+            raise TypeError("random_seed must be an integer or None")
+
         self.learning_mode = learning_mode
         self.model_path = model_path or 'models'
         
         # Set random seed for reproducibility
         self.random_seed = random_seed
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        self.rng = np.random.default_rng(random_seed)
         
         # Ensure model directory exists
         os.makedirs(self.model_path, exist_ok=True)
@@ -97,6 +110,13 @@ class AdaptiveAgent:
         # Internal state for reward calculation
         self.prev_energy = None
         self.prev_vdj_state = None
+
+    @staticmethod
+    def _validate_state_inputs(audio_features: Dict, vdj_state: Dict):
+        if not isinstance(audio_features, Mapping):
+            raise TypeError("audio_features must be a mapping")
+        if not isinstance(vdj_state, Mapping):
+            raise TypeError("vdj_state must be a mapping")
     
     def _load_models(self):
         """Load pre-trained models if they exist."""
@@ -157,6 +177,7 @@ class AdaptiveAgent:
         Returns:
             Feature vector as numpy array
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         features = [
             audio_features.get('rms', 0.0),
             audio_features.get('rms_db', -80.0),
@@ -187,6 +208,7 @@ class AdaptiveAgent:
         Returns:
             Dictionary with recommended actions
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         actions = {
             'crossfade_adjust': 0.0,
             'volume_adjust_a': 0.0,
@@ -237,11 +259,7 @@ class AdaptiveAgent:
             actions['eq_adjust'] = {'high': 0.1}
         
         # Random effect triggers for variety
-        if self.random_seed is None:
-            random_val = np.random.random()
-        else:
-            # Use seeded random for reproducibility
-            random_val = np.random.random()
+        random_val = self.rng.random()
         
         if random_val < self.mix_params['effect_probability']:
             if audio_features.get('beat_detected', False):
@@ -260,6 +278,7 @@ class AdaptiveAgent:
         Returns:
             Dictionary with recommended actions
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         if not self.classifier or not self.scaler:
             print("Supervised learning not available, falling back to heuristics")
             return self.decide_action_heuristic(audio_features, vdj_state)
@@ -291,13 +310,14 @@ class AdaptiveAgent:
         Returns:
             Dictionary with recommended actions
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         # Discretize state for Q-table
         state_key = self._discretize_state(audio_features, vdj_state)
         
         # Epsilon-greedy action selection
-        if np.random.random() < self.exploration_rate:
+        if self.rng.random() < self.exploration_rate:
             # Explore: random action
-            action_idx = np.random.randint(0, 5)
+            action_idx = self.rng.integers(0, 5)
         else:
             # Exploit: best known action
             if state_key not in self.q_table:
@@ -347,7 +367,13 @@ class AdaptiveAgent:
                 'eq_adjust': {}, 'effect_trigger': 1, 'transition_now': True},
         }
         
-        return action_map.get(action_class, action_map[0])
+        if isinstance(action_class, np.integer):
+            action_class = int(action_class)
+        if action_class not in action_map:
+            raise ValueError(f"unknown action class: {action_class}")
+        action = action_map[action_class].copy()
+        action['eq_adjust'] = action['eq_adjust'].copy()
+        return action
     
     def _map_action_index(self, action_idx: int, audio_features: Dict, vdj_state: Dict) -> Dict:
         """Map action index to specific actions."""
@@ -360,6 +386,11 @@ class AdaptiveAgent:
         Args:
             reward: Reward signal from environment
         """
+        if isinstance(reward, bool) or not isinstance(reward, (int, float, np.number)):
+            raise TypeError("reward must be a number")
+        if not math.isfinite(float(reward)):
+            raise ValueError("reward must be finite")
+
         if len(self.state_history) < 2 or len(self.action_history) < 1:
             return
         
@@ -573,6 +604,7 @@ class AdaptiveAgent:
         Returns:
             Reward value (typically between -1.0 and 1.0, higher is better)
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         # Extract features
         rms_db = audio_features.get('rms_db', -30.0)
         energy = audio_features.get('energy', 0.5)
@@ -681,6 +713,7 @@ class AdaptiveAgent:
         Returns:
             Dictionary with individual reward components and total
         """
+        self._validate_state_inputs(audio_features, vdj_state)
         # Extract features
         rms_db = audio_features.get('rms_db', -30.0)
         energy = audio_features.get('energy', 0.5)
